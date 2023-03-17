@@ -11,6 +11,30 @@ import java.util.List;
 
 @Service
 public class NotificationTaskService {
+    private  final NotificationTaskRepository notificationTaskRepository;
+
+    public NotificationTaskService(NotificationTaskRepository notificationTaskRepository) {
+        this.notificationTaskRepository = notificationTaskRepository;
+    }
+
+    @Transactional
+    public void addNotificationTask(LocalDateTime localDateTime,
+                                    String message, Long userId){
+        NotificationTask notificationTask = new NotificationTask();
+        notificationTask.setNotificationDateTime(localDateTime);
+        notificationTask.setMessage(message);
+        notificationTask.setUserId(userId);
+        notificationTaskRepository.save(notificationTask);
+    }
+
+    public List<NotificationTask> findNotificationsForSend(){
+        return notificationTaskRepository.findNotificationTasksByNotificationDateTime(LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES));
+    }
+
+    @Transactional
+    public void deleteTask(NotificationTask notificationTask){
+        notificationTaskRepository.delete(notificationTask);
+    }
 
 
 }
