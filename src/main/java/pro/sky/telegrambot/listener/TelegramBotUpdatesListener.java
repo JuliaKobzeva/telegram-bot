@@ -26,7 +26,67 @@ import static java.time.LocalDateTime.parse;
 
 @Service
 public class TelegramBotUpdatesListener implements UpdatesListener {
+    private Logger logger = LoggerFactory.getLogger(TelegramBotUpdatesListener.class);
+    private static final Pattern NOTIFICATION_TASK_PATTERN = Pattern.compile(
+            "([\\d\\\\.:\\s]{16})(\\s)([A-zА-я\\s\\d,.!?:]+)");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+
+    private TelegramBot telegramBot;
+    private final NotificationTaskService notificationTaskService;
+
+    public TelegramBotUpdatesListener(TelegramBot telegramBot,
+                                      NotificationTaskService notificationTaskService) {
+        this.telegramBot = telegramBot;
+        this.notificationTaskService = notificationTaskService;
+    }
+
+    @PostConstruct
+    public void init() {
+        telegramBot.setUpdatesListener(this);
+    }
+
+    @Override
+    public int process(List<Update> updates) {
+        try {
+            updates.forEach(update -> {
+                logger.info("Processing update: {}", update);
+                String text = update.message().text();
+                Long userId = update.message().from().id();
+                if ("/start".equals(text)) {
+                    SendMessage sendMessage = new SendMessage(userId,
+                            "Отправьте задачу в формате:\n*01.01.2022 20:00 Сделать домашнюю работу*");
+                    sendMessage.parseMode(ParseMode.Markdown);
+                    telegramBot.execute(sendMessage);
+                } else if (text != null) {
+                    Matcher matcher = NOTIFICATION_TASK_PATTERN.matcher(text);
+                    if (matcher.find()) {
+                        LocalDateTime localDateTime = parse(matcher.group(1));
+                        if (!Objects.isNull(localDateTime)) {
+                            String message = matcher.group(3);
+                            notificationTaskService.addNotificationTask(localDateTime, message, userId);
+                            telegramBot.execute(new SendMessage(userId, "Задача запланирована"));
+                        } else {
+                            telegramBot.execute(new SendMessage(userId, "Некорректный формат даты или времени"));
+                        }
+                    } else {
+                        telegramBot.execute(new SendMessage(userId, "Некорректный формат задачи для планирования"));
+                    }
+                }
+            });
+        } catch(Exception e){
+            e.printStackTrace();
+        }
+        return UpdatesListener.CONFIRMED_UPDATES_ALL;
+    }
 
 
+    @Nullable
+    private LocalDateTime parse(String dateTime){
+        try{
+            return LocalDateTime.parse(dateTime, DATE_TIME_FORMATTER);
+        }catch (DateTimeParseException e){
+            return null;
+        }
+    }
 
 }

@@ -10,6 +10,22 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 public class NotificationTaskTimer {
+    private final NotificationTaskService notificationTaskService;
+    private final TelegramBot telegramBot;
 
+    public NotificationTaskTimer(NotificationTaskService notificationTaskService, TelegramBot telegramBot) {
+        this.notificationTaskService = notificationTaskService;
+        this.telegramBot = telegramBot;
+    }
 
+    @Scheduled(fixedDelay = 1, timeUnit = TimeUnit.MINUTES)
+    public void checkNotifications(){
+        notificationTaskService.findNotificationsForSend().forEach(notificationTask -> {
+            telegramBot.execute(
+                    new SendMessage(notificationTask.getUserId(),
+                            "Напоминание: " + notificationTask.getMessage())
+            );
+            notificationTaskService.deleteTask(notificationTask);
+        });
+    }
 }
